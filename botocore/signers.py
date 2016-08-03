@@ -125,6 +125,12 @@ class RequestSigner(object):
 
         signature_version = self._choose_signer(
             operation_name, signing_type, request.context)
+        if signature_version == 's3v4':
+            if operation_name == 'PutObject' or operation_name == 'UploadPart':
+                client_config = request.context.get('client_config')
+                s3_config = getattr(client_config, 's3', None)
+                if s3_config and s3_config.get('aws_chunked', None):
+                    signature_version = 's3v4-chunked'
 
         # Allow mutating request before signing
         self._event_emitter.emit(
