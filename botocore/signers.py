@@ -110,6 +110,12 @@ class RequestSigner(object):
         if response is not None:
             signature_version = response
 
+        if signature_version == 's3v4' and operation_name == 'PutObject':
+            client_config = request.context.get('client_config')
+            s3_config = getattr(client_config, 's3', None)
+            if s3_config and s3_config.get('aws_chunked', None):
+                signature_version = 's3v4-chunked'
+
         # Allow mutating request before signing
         self._event_emitter.emit(
             'before-sign.{0}.{1}'.format(self._service_name, operation_name),
