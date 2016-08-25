@@ -530,6 +530,8 @@ class S3SigV4ChunkedAuth(S3SigV4Auth):
             # \r\n for each request (two \r\n for the last, 0 payload chunk)
             return meta + '\r\n' + data + '\r\n'
 
+        read = __getitem__
+
         def __iter__(self):
             return self
 
