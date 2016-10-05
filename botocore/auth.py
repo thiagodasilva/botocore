@@ -524,14 +524,16 @@ class S3SigV4ChunkedAuth(S3SigV4Auth):
             encoding += ',' + request.headers['Content-Encoding']
         request.headers['Content-Encoding'] = encoding
 
-        if 'Content-Length' not in request.headers:
-            raise ValueError(
-                'Request must include Content-Length for chunked encoding')
+        try:
+            content_length = len(request.body)
+        except TypeError:
+            if 'Content-Length' not in request.headers:
+                raise ValueError(
+                    'Request must include Content-Length for chunked encoding')
+            content_length = int(request.headers['Content-Length'])
 
-        content_length = request.headers['Content-Length']
-        request.headers['X-Amz-Decoded-Content-Length'] = content_length
+        request.headers['X-Amz-Decoded-Content-Length'] = str(content_length)
 
-        content_length = int(content_length)
         chunks = content_length / self.CHUNK_LENGTH
         total_length = content_length
         total_length += chunks * (self.CHUNK_CHAR_LEN + self.META_LENGTH)
