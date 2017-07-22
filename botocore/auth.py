@@ -465,8 +465,11 @@ class S3SigV4ChunkedAuth(S3SigV4Auth):
 
             data = ''
             while to_read:
-                data += self._data.read(to_read)
-                to_read -= len(data)
+                new_data = self._data.read(to_read)
+                if not new_data and to_read:
+                    raise RuntimeError('Not enough content')
+                data += new_data
+                to_read -= len(new_data)
             self._read_chunks += 1
 
             meta = self._create_chunk_meta(data)

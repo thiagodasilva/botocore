@@ -40,26 +40,18 @@ class TestSigV4Chunked(unittest.TestCase):
         return dict([part.strip().split('=') for part in auth_parts])
 
     @mock.patch('botocore.auth.datetime.datetime')
-    def test_auth_headers(self, datetime_mock):
+    def _test_chunked_upload(self,
+            data, expected_chunks, expected_auth_signature, datetime_mock):
         datetime_mock.utcnow.return_value = self.datetime_now
 
-        data = self.FakeFile(10)
         region = 'us-east-1'
         # Pre-computed request signature
-        expected_auth_signature = \
-            '6c856c1a224fc741eab72a36af7c8bb358436838bdcd86ab27910176e7097e75'
-        expected_chunks = [
-            (len(data),
-            '7a2b06e6ee4a9f41b6bcdb08395929c6b39f4fd1036a95f009cb6e5f2d8235db'),
-            (0,
-            '37e72b3755e13b8165f51f797c6bbfde1ebc315f2faef0434ea3932af6a58780')
-        ]
         meta_length = self.CHUNK_META_LEN * 2 + 1 + len(hex(len(data))[2:])
         encoded_length = len(data) + meta_length
         signed_headers = [
-            'content-encoding', 
-            'content-length', 
-            'host', 
+            'content-encoding',
+            'content-length',
+            'host',
             'x-amz-content-sha256',
             'x-amz-date',
             'x-amz-decoded-content-length'
@@ -101,3 +93,61 @@ class TestSigV4Chunked(unittest.TestCase):
             self.assertEqual(expected_chunk_signature, chunk_signature)
             offset += len(chunk)
             chunks += 1
+
+    def test_auth_headers(self):
+        data = self.FakeFile(10)
+        # Pre-computed request signature
+        expected_auth_signature = \
+            '6c856c1a224fc741eab72a36af7c8bb358436838bdcd86ab27910176e7097e75'
+        expected_chunks = [
+            (len(data),
+            '7a2b06e6ee4a9f41b6bcdb08395929c6b39f4fd1036a95f009cb6e5f2d8235db'),
+            (0,
+            '37e72b3755e13b8165f51f797c6bbfde1ebc315f2faef0434ea3932af6a58780')
+        ]
+        self._test_chunked_upload(
+            data, expected_chunks, expected_auth_signature)
+
+    def test_multi_read_upload(self):
+        '''Test an upload where we have to issue multiple reads'''
+        class FixedSizeSource(object):
+            def __init__(self, length, read_size):
+                self.read_size = read_size
+                self.length = length
+
+            def __len__(self):
+                return self.length
+
+            def read(self, size):
+                return self.read_size * 'A'
+
+        data = FixedSizeSource(1024, 256)
+        expected_auth_signature = \
+            'fc561b15be2a591341b7b7b678eeeb05917518f45f45761ffcdcaa92186279fa'
+        expected_chunks = [
+            (len(data),
+            '356d851e711ffc62e57bf25423ade389e52992855e37f0249080ad91432e8ba8'),
+            (0,
+            'eabbb8bda2dee016da251605aa81a6b8c71730023192219f580bf932df712078')
+        ]
+        self._test_chunked_upload(
+            data, expected_chunks, expected_auth_signature)
+
+    def test_partial_read(self):
+        '''Test an upload where we have to issue multiple reads'''
+        class EmptySource(object):
+            def __init__(self, length):
+                self.length = length
+
+            def __len__(self):
+                return self.length
+
+            def read(self, size):
+                return ''
+
+        data = EmptySource(1024)
+        expected_auth_signature = \
+            'fc561b15be2a591341b7b7b678eeeb05917518f45f45761ffcdcaa92186279fa'
+        with self.assertRaises(RuntimeError) as cm:
+            self._test_chunked_upload(data, [], expected_auth_signature)
+        self.assertEqual('Not enough content', cm.exception.message)
