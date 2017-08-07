@@ -583,7 +583,7 @@ class S3SigV4ChunkedAuth(S3SigV4Auth):
 
         try:
             content_length = len(request.body)
-        except TypeError:
+        except AttributeError:
             if 'Content-Length' not in request.headers:
                 raise ValueError(
                     'Request must include Content-Length for chunked encoding')
