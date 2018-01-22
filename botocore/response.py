@@ -141,6 +141,12 @@ class StreamingBody(object):
     def close(self):
         """Close the underlying http response stream."""
         self._raw_stream.close()
+        conn = getattr(self._raw_stream, '_connection', None)
+        release_conn = getattr(self._raw_stream, 'release_conn', None)
+        if conn is not None:
+            conn.close
+            if release_conn is not None:
+                release_conn()
 
 
 def get_response(operation_model, http_response):
